@@ -30,19 +30,17 @@ class Foveated_Encoder(nn.Module):
         self.pe = pe
 
         
-    def forward(self, x, bb):
-        x_min, y_min, x_max, y_max = bb
-        bb = x[x_min:x_max, y_min:y_max]
+    def forward(self, x, fov):
         x = torchvision.transforms.Resize(self.per_size)(x)
         per_embeddings = self.per_encoder(x)
         per_embeddings = self.avgpool(per_embeddings)
         per_embeddings = torch.flatten(per_embeddings, 1)
-        fov_embeddings = self.fov_encoder(bb)
+        fov_embeddings = self.fov_encoder(fov)
         fov_embeddings = self.avgpool(fov_embeddings)
         if self.pe:
             fov_embeddings = self.pe(fov_embeddings)
         fov_embeddings = torch.flatten(fov_embeddings,1)
-        x = fov_embeddings + per_embeddings
+        x = torch.concat([fov_embeddings, per_embeddings], dim=1)
         x = self.fc(x)
         return x
         

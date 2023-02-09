@@ -85,7 +85,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         with torch.no_grad():
             for data, bb, labels in self.val_dataloader:
                 data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
-                outputs = self.model(data)
+                outputs = self.model(data, bb)
 
                 loss = F.cross_entropy(outputs, labels)
                 acc = accuracy(outputs, labels)[0]

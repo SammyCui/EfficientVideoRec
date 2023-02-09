@@ -16,7 +16,7 @@ module load pytorch-py37-cuda10.2-gcc8/1.9.1
 module load ml-pythondeps-py37-cuda10.2-gcc8/4.7.5
 
 
-python3 /u/erdos/cnslab/xcui32/FSL/main.py \
+python3 /u/erdos/cnslab/xcui32/EfficientVideoRec/main.py \
  --root  \
  --start_epoch 0 --max_epoch 100 \
  --lr 0.001 --optimizer adam --lr_scheduler step --step_size 20 --gamma 0.2 \

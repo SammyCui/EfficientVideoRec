@@ -28,7 +28,8 @@ class BasicBlock(nn.Module):
                  downsample: Optional[nn.Module] = None,
                  drop_rate: float = 0,
                  drop_block: bool = False,
-                 block_size: int = 1):
+                 block_size: int = 1,
+                 domaxpool: bool = True):
         super().__init__()
         self.conv1 = conv3x3(inplanes, planes)
         self.bn1 = nn.BatchNorm2d(planes)
@@ -45,6 +46,7 @@ class BasicBlock(nn.Module):
         self.drop_block = drop_block
         self.block_size = block_size
         self.DropBlock = DropBlock(block_size=self.block_size)
+        self.domaxpool = domaxpool
 
     def forward(self, x):
         self.num_batches_tracked += 1
@@ -66,7 +68,8 @@ class BasicBlock(nn.Module):
             residual = self.downsample(x)
         out += residual
         out = self.relu(out)
-        out = self.maxpool(out)
+        if self.domaxpool:
+            out = self.maxpool(out)
 
         if self.drop_rate > 0:
             if self.drop_block:
@@ -90,6 +93,7 @@ class Resnet12Backbone(nn.Module):
                  dropblock_dropout: float = 0.1,  # dropout rate for residual layes
                  wider: bool = True,  # True for MetaOptNet, False for TADAM
                  channels: int = 3,
+                 domaxpool: bool = True
                  ):
         super().__init__()
         self.inplanes = channels
@@ -97,12 +101,17 @@ class Resnet12Backbone(nn.Module):
             num_filters = [64, 160, 320, 640]
         else:
             num_filters = [64, 128, 256, 512]
-        self.layer1 = self._make_layer(block, num_filters[0], stride=2, dropblock_dropout=dropblock_dropout)
-        self.layer2 = self._make_layer(block, num_filters[1], stride=2, dropblock_dropout=dropblock_dropout)
+
+        if domaxpool:
+            domaxpools = [True, True, True, True]
+        else:
+            domaxpools = [True, True, True, False]
+        self.layer1 = self._make_layer(block, num_filters[0], stride=2, dropblock_dropout=dropblock_dropout, domaxpool=domaxpools[0])
+        self.layer2 = self._make_layer(block, num_filters[1], stride=2, dropblock_dropout=dropblock_dropout, domaxpool=domaxpools[1])
         self.layer3 = self._make_layer(block, num_filters[2], stride=2, dropblock_dropout=dropblock_dropout,
-                                       drop_block=True, block_size=dropblock_size)
+                                       drop_block=True, block_size=dropblock_size, domaxpool=domaxpools[2])
         self.layer4 = self._make_layer(block, num_filters[3], stride=2, dropblock_dropout=dropblock_dropout,
-                                       drop_block=True, block_size=dropblock_size)
+                                       drop_block=True, block_size=dropblock_size, domaxpool=domaxpools[3])
 
         self.embedding_dropout = embedding_dropout
         self.dropout = nn.Dropout(p=self.embedding_dropout, inplace=False)
@@ -120,7 +129,7 @@ class Resnet12Backbone(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def _make_layer(self, block, planes: int, stride: int = 1, dropblock_dropout: float = 0, drop_block: bool = False,
-                    block_size: int = 1):
+                    block_size: int = 1, domaxpool: bool = True):
         downsample = None
         if stride != 1 or self.inplanes != planes * block.expansion:
             downsample = nn.Sequential(
@@ -129,7 +138,7 @@ class Resnet12Backbone(nn.Module):
                 nn.BatchNorm2d(planes * block.expansion),
             )
 
-        layers = [block(self.inplanes, planes, stride, downsample, dropblock_dropout, drop_block, block_size)]
+        layers = [block(self.inplanes, planes, stride, downsample, dropblock_dropout, drop_block, block_size, domaxpool)]
         self.inplanes = planes * block.expansion
 
         return nn.Sequential(*layers)
@@ -143,12 +152,13 @@ class Resnet12Backbone(nn.Module):
         return x
 
 
+
 def Resnet12(**kwargs):
 
     return Resnet12Backbone(**kwargs)
 
 
 if __name__ == '__main__':
-    bb = Resnet12Backbone()
-    inp = torch.zeros((1, 3, 64, 64))
+    bb = Resnet12Backbone(domaxpool=False)
+    inp = torch.zeros((1, 3, 9, 31))
     print(bb(inp).shape)

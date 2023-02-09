@@ -1,3 +1,4 @@
+import scipy
 import scipy.stats
 import numpy as np
 

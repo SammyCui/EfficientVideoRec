@@ -6,7 +6,7 @@ from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-from backbones.resnet import Resnet12
+from backbones.resnet import Resnet12Backbone
 from datasets.VOC import VOCDataset
 from foveated_encoder import Foveated_Encoder
 
@@ -22,7 +22,7 @@ def make_tuple(x):
 
 
 def get_model_optimizer(args):
-    per_encoder, fov_encoder = Resnet12(), Resnet12()
+    per_encoder, fov_encoder = Resnet12Backbone(), Resnet12Backbone(domaxpool=False)
     model = Foveated_Encoder(per_encoder=per_encoder, fov_encoder=fov_encoder, fov_out_dim=640, per_out_dim=640, per_size=args.per_size, n_classes=10, pe=None)
 
     if args.optimizer == 'sgd':
@@ -92,12 +92,13 @@ def get_dataloaders(args):
     return train_dataloader, val_dataloader, test_dataloader
 
 
-def parser():
+def args_parser():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', type=str, nargs='?',const=DEFAULT_ROOT, default=DEFAULT_ROOT)
-    parser.add_argument('--per_size', type=int, const=64, default=64)
-    parser.add_argument('--max_epoch', type=int, const=100, default=100)
+    parser.add_argument('--root', type=str,  default=DEFAULT_ROOT)
+    parser.add_argument('--per_size',  type=int,  default=64)
+    parser.add_argument('--start_epoch', type=int, default=0)
+    parser.add_argument('--max_epoch', type=int, default=100)
 
 
     parser.add_argument('--lr', type=float, default=0.001)
@@ -116,6 +117,7 @@ def parser():
     parser.add_argument('--download', type=str, default='False', nargs='?', const='False')
     parser.add_argument('--save', type=str, default='False', nargs='?', const='False')
     parser.add_argument('--resume', type=str, default=None, nargs='?', const=None)
+    parser.add_argument('--init_backbone', type=str, default=None, nargs='?', const=None)
 
     args = parser.parse_args()
     args = post_process_args(args)
@@ -129,3 +131,53 @@ def post_process_args(args):
     return args
 
 
+class DebugArgs:
+    def __init__(self,
+
+                 root: str = '/Users/xuanmingcui/Documents/projects/cnslab/cnslab/SequentialTraining/datasets/VOC2012_filtered',
+
+                 start_epoch: int = 0,
+                 max_epoch: int = 200,
+                 lr: float = 0.001,
+                 optimizer: str = 'adam',
+                 lr_scheduler: str = 'step',
+                 step_size: int = 20,
+                 gamma: float = 0.2,
+                 per_size: int = 64,
+                 momentum: float = 0.9,
+                 weight_decay: float = 0.0005,
+                 val_interval: int = 1,
+                 num_workers: int = 1,
+                 batch_size: int = 1,
+                 download: bool = False,
+                 device: str = 'cpu',
+                 result_dir: str = './checkpoints',
+                 save: bool = False,
+                 resume: bool = False,
+                 init_backbone: bool = False):
+
+        self.root = root
+
+        self.download = download
+        self.num_workers = num_workers
+        self.start_epoch = start_epoch
+        self.max_epoch = max_epoch
+        self.lr = lr
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
+        self.step_size = step_size
+        self.gamma = gamma
+        self.per_size = per_size
+        self.momentum = momentum
+        self.weight_decay = weight_decay
+        self.batch_size = batch_size
+        self.val_interval = val_interval
+        self.device = device
+        self.result_dir = result_dir
+        self.save = save
+        self.resume = resume
+        self.init_backbone = init_backbone
+
+        self.train_root = os.path.join(self.root, 'train')
+        self.val_root = os.path.join(self.root, 'val')
+        self.test_root = os.path.join(self.root, 'test')

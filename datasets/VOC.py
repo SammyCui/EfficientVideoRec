@@ -5,7 +5,8 @@ import torch
 import torchvision
 from PIL import Image, ImageDraw
 from datasets.utils import get_anno_stats
-
+import numpy as np
+import torch.nn.functional as F
 IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp")
 
 """
@@ -71,7 +72,15 @@ class VOCDataset(torchvision.datasets.VisionDataset):
                 x_min, y_min, x_max, y_max = bndbox
                 new_x_min, new_x_max = x_min * x_scalar, x_max * x_scalar
                 new_y_min, new_y_max = y_min * y_scalar, y_max * y_scalar
-                bndbox = new_x_min, new_y_min, new_x_max, new_y_max
+                bndbox = round(new_x_min), round(new_y_min), round(new_x_max), round(new_y_max)
+        bndbox = sample[..., bndbox[1]:bndbox[3], bndbox[0]:bndbox[2]]
+        # if the bounding box is too small: < 9, pad it to >=9
+        if bndbox.shape[1] < 9:
+            padding = int(np.ceil(9 - bndbox.shape[1]) / 2)
+            bndbox = F.pad(bndbox, (0, 0, padding, padding))
+        if bndbox.shape[2] < 9:
+            padding = int(np.ceil(9 - bndbox.shape[2]) / 2)
+            bndbox = F.pad(bndbox, (padding, padding, 0, 0))
         if self.target_transform is not None:
             target = self.target_transform(target)
 
