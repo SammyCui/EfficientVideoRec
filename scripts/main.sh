@@ -4,10 +4,10 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --gres=gpu:1
 #SBATCH --gpus-per-task=1
-#SBATCH --job-name=ImagenetR18
+#SBATCH --job-name=fovcnn
 #SBATCH --mail-user=xcui32@fordham.edu
 #SBATCH --mail-type=END
-#SBATCH --output=/u/erdos/cnslab/xcui32/FSL/results/mini_conv/output.out
+#SBATCH --output=/u/erdos/cnslab/xcui32/EfficientVideoRec/results/fovcnn/output.out
 
 module purg
 module load gcc8 cuda10.2
@@ -21,4 +21,4 @@ python3 /u/erdos/cnslab/xcui32/EfficientVideoRec/main.py \
  --start_epoch 0 --max_epoch 100 \
  --lr 0.001 --optimizer adam --lr_scheduler step --step_size 20 --gamma 0.2 \
  --momentum 0.9  --weight_decay 0.0005 --val_interval 1 \
- --num_workers 16 --device 'cuda:0' --download False --result_dir './results/fovcnn' --save False --resume --init_backbone
+ --num_workers 1 --batch_size 1  --device 'cuda:0' --download False --result_dir './results/fovcnn' --save False --resume --init_backbone

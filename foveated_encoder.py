@@ -3,7 +3,7 @@ from typing import Union, Tuple, Any, Callable, Optional
 import torch
 import torchvision.transforms
 from torch import nn
-from torch.nn.common_types import _size_2_t
+from utils.common_types import _size_2_t
 
 class Foveated_Encoder(nn.Module):
     def __init__(
