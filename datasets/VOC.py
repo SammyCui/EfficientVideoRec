@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 from datasets.utils import get_anno_stats
 import numpy as np
 import torch.nn.functional as F
+from utils.common_types import _size_2_t
 IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp")
 
 """
@@ -22,6 +23,7 @@ class VOCDataset(torchvision.datasets.VisionDataset):
                  cls_to_use: Optional[Iterable[str]] = None,
                  num_classes: Optional[int] = None,
                  transform: Optional[Callable] = None,
+                 per_size: _size_2_t = None,
                  target_transform: Optional[Callable] = None,
                  loader: Callable[[str], Any] = default_loader,
                  is_valid_file: Optional[Callable[[str], bool]] = None,
@@ -44,6 +46,7 @@ class VOCDataset(torchvision.datasets.VisionDataset):
         self.class_to_idx = class_to_idx
         self.samples = samples
         self.targets = [s[1] for s in samples]
+        self.per_size = per_size
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -83,7 +86,8 @@ class VOCDataset(torchvision.datasets.VisionDataset):
             bndbox = F.pad(bndbox, (padding, padding, 0, 0))
         if self.target_transform is not None:
             target = self.target_transform(target)
-
+        if self.per_size:
+            sample = F.interpolate(sample, size=self.per_size)
         return sample, bndbox, target
 
     def _find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:

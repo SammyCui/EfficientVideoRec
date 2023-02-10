@@ -3,7 +3,6 @@ from typing import Union, Tuple, Any, Callable, Optional
 import torch
 import torchvision.transforms
 from torch import nn
-from utils.common_types import _size_2_t
 
 class Foveated_Encoder(nn.Module):
     def __init__(
@@ -11,7 +10,7 @@ class Foveated_Encoder(nn.Module):
         per_encoder: Callable,
         fov_encoder: Callable,
         pe: Optional[Callable],
-        per_size: _size_2_t,
+
         per_out_dim: int,
         fov_out_dim: int,
         n_classes: int,
@@ -21,7 +20,6 @@ class Foveated_Encoder(nn.Module):
 
         self.per_encoder = per_encoder
         self.fov_encoder = fov_encoder
-        self.per_size = per_size
         self.per_out_dim = per_out_dim
         self.fov_out_dim = fov_out_dim
         self.device = device
@@ -31,7 +29,6 @@ class Foveated_Encoder(nn.Module):
 
         
     def forward(self, x, fov):
-        x = torchvision.transforms.Resize(self.per_size)(x)
         per_embeddings = self.per_encoder(x)
         per_embeddings = self.avgpool(per_embeddings)
         per_embeddings = torch.flatten(per_embeddings, 1)
