@@ -2,7 +2,7 @@ from typing import Optional, Union, Tuple
 import torch
 from torch import nn
 from torch.nn.common_types import _size_2_t, _size_any_t
-from utils.utils import make_tuple
+from utils.helpers import make_tuple
 
 class PerMaxPool2d(nn.Module):
     def __init__(self,

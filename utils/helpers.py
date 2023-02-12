@@ -1,14 +1,14 @@
 import argparse
 import os
-import numpy as np
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-from backbones.resnet import Resnet12Backbone
+from backbones.resnet import resnet12
 from datasets.VOC import VOCDataset
-from foveated_encoder import Foveated_Encoder
+from models.foveated_encoder import *
+from models.benchmark import Benchmark
 
 DEFAULT_ROOT = '/u/erdos/students/xcui32/SequentialTraining/datasets/VOC2012/VOC2012_filtered/'
 DEFAULT_CLS = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', 'cat', 'chair', 'cow']
@@ -22,8 +22,14 @@ def make_tuple(x):
 
 
 def get_model_optimizer(args):
-    per_encoder, fov_encoder = Resnet12Backbone(), Resnet12Backbone(domaxpool=False)
-    model = Foveated_Encoder(per_encoder=per_encoder, fov_encoder=fov_encoder, fov_out_dim=640, per_out_dim=640, per_size=args.per_size, n_classes=10, pe=None)
+
+    backbone = eval(args.backbone)(args)
+    if args.model == 'Benchmark':
+        model = Benchmark(backbone, out_dim=args.backbone_out_dim)
+    elif args.model == 'FE_WeightShare':
+        model = FE_WeightShare(backbone, out_dim=args.backbone_out_dim, n_classes=10, pe=args.pe)
+    else:
+        raise Exception('Model not implemented')
 
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(),
@@ -72,33 +78,42 @@ def get_model_optimizer(args):
 
     return model, optimizer, lr_scheduler
 
-
 def get_dataloaders(args):
-    transform = transforms.Compose([transforms.Resize(args.per_size),
+    transform = transforms.Compose([transforms.Resize(256),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean, std)])
     train_dataset = VOCDataset(root=os.path.join(args.train_root, 'root'), anno_root=os.path.join(args.train_root, 'annotations'),
                                cls_to_use=DEFAULT_CLS,
-                               transform=transform)
+                               transform=transform,
+                               per_size=args.per_size)
     val_dataset = VOCDataset(root=os.path.join(args.val_root, 'root'), anno_root=os.path.join(args.val_root, 'annotations'),
-                               cls_to_use=DEFAULT_CLS,
-                               transform=transform)
+                            cls_to_use=DEFAULT_CLS,
+                            transform=transform,
+                            per_size=args.per_size)
     test_dataset = VOCDataset(root=os.path.join(args.test_root, 'root'), anno_root=os.path.join(args.test_root, 'annotations'),
-                               cls_to_use=DEFAULT_CLS,
-                               transform=transform)
+                              cls_to_use=DEFAULT_CLS,
+                              transform=transform,
+                              per_size=args.per_size)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
     val_dataloader   = DataLoader(val_dataset,   batch_size=args.batch_size, num_workers=args.num_workers)
     test_dataloader  = DataLoader(test_dataset,  batch_size=args.batch_size, num_workers=args.num_workers)
     return train_dataloader, val_dataloader, test_dataloader
 
 
+
 def args_parser():
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--root', type=str,  default=DEFAULT_ROOT)
-    parser.add_argument('--per_size',  type=int,  default=64)
+    parser.add_argument('--root', type=str, nargs='?', const=DEFAULT_ROOT, default=DEFAULT_ROOT)
     parser.add_argument('--start_epoch', type=int, default=0)
     parser.add_argument('--max_epoch', type=int, default=100)
+
+    parser.add_argument('--backbone', type=str, nargs='?', const='resnet12', default='resnet12')
+    parser.add_argument('--model', type=str, nargs='?', const='Benchmark', default='Benchmark')
+    parser.add_argument('--backbone_out_dim', type=int, nargs='?', const=512, default=512)
+    parser.add_argument('--pe', type=str, nargs='?', const=None,default=None)
+    parser.add_argument('--per_size', type=int, nargs='?', const=None, default=None)
+    parser.add_argument('--base_channels', type=int, nargs='?', const=64, default=64)
 
 
     parser.add_argument('--lr', type=float, default=0.001)
@@ -125,6 +140,7 @@ def args_parser():
 
 
 def post_process_args(args):
+
     args.train_root = os.path.join(args.root, 'train')
     args.val_root = os.path.join(args.root, 'val')
     args.test_root = os.path.join(args.root, 'test')
@@ -135,7 +151,12 @@ class DebugArgs:
     def __init__(self,
 
                  root: str = '/Users/xuanmingcui/Documents/projects/cnslab/cnslab/SequentialTraining/datasets/VOC2012_filtered',
-
+                 backbone: str = 'resnet12',
+                 model: str = 'Benchmark',
+                 backbone_out_dim: int = 512,
+                 pe: str = None,
+                 per_size: int = None,
+                 base_channels: int = 64,
                  start_epoch: int = 0,
                  max_epoch: int = 200,
                  lr: float = 0.001,
@@ -143,7 +164,6 @@ class DebugArgs:
                  lr_scheduler: str = 'step',
                  step_size: int = 20,
                  gamma: float = 0.2,
-                 per_size: int = 64,
                  momentum: float = 0.9,
                  weight_decay: float = 0.0005,
                  val_interval: int = 1,
@@ -157,7 +177,12 @@ class DebugArgs:
                  init_backbone: bool = False):
 
         self.root = root
-
+        self.backbone = backbone
+        self.backbone_out_dim = backbone_out_dim
+        self.pe = pe
+        self.per_size = per_size
+        self.base_channels = base_channels
+        self.model = model
         self.download = download
         self.num_workers = num_workers
         self.start_epoch = start_epoch
@@ -167,7 +192,6 @@ class DebugArgs:
         self.lr_scheduler = lr_scheduler
         self.step_size = step_size
         self.gamma = gamma
-        self.per_size = per_size
         self.momentum = momentum
         self.weight_decay = weight_decay
         self.batch_size = batch_size

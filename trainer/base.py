@@ -8,7 +8,7 @@ from utils.meters import AverageMeter, StatsMeter
 from utils.metric import accuracy
 from timeit import default_timer as timer
 
-from utils.utils import get_model_optimizer, get_dataloaders
+from utils.helpers import get_model_optimizer, get_dataloaders
 
 
 class BaseTrainer(metaclass=abc.ABCMeta):
@@ -43,7 +43,9 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             for data, bb, labels in self.train_dataloader:
 
                 self.train_step += 1
-                data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
+                data, labels = data.to(self.device), labels.to(self.device)
+                if bb:
+                    bb = bb.to(self.device)
 
                 forward_t0 = timer()
                 outputs = self.model(data, bb)
@@ -84,7 +86,9 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         val_loss, val_acc = StatsMeter(), StatsMeter()
         with torch.no_grad():
             for data, bb, labels in self.val_dataloader:
-                data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
+                data, labels = data.to(self.device), labels.to(self.device)
+                if bb:
+                    bb = bb.to(self.device)
                 outputs = self.model(data, bb)
 
                 loss = F.cross_entropy(outputs, labels)
@@ -175,7 +179,9 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         test_loss, test_acc = StatsMeter(), StatsMeter()
         with torch.no_grad():
             for data, bb, labels in self.val_dataloader:
-                data, bb, label = data.to(self.device), bb.to(self.device), label.to(self.device)
+                data, label = data.to(self.device), label.to(self.device)
+                if bb:
+                    bb = bb.to(self.device)
                 outputs = self.model(data, bb)
 
                 loss = F.cross_entropy(outputs, labels)

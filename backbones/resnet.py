@@ -91,16 +91,14 @@ class Resnet12Backbone(nn.Module):
                  dropblock_size: int = 1,
                  embedding_dropout: float = 0,  # dropout for embedding
                  dropblock_dropout: float = 0.1,  # dropout rate for residual layes
-                 wider: bool = True,  # True for MetaOptNet, False for TADAM
+                 base_channels: int = 64,           # number of
                  channels: int = 3,
-                 domaxpool: bool = True
+                 domaxpool: bool = False
                  ):
         super().__init__()
         self.inplanes = channels
-        if wider:
-            num_filters = [64, 160, 320, 640]
-        else:
-            num_filters = [64, 128, 256, 512]
+        num_filters = [base_channels * 2**i for i in range(4)]
+
 
         if domaxpool:
             domaxpools = [True, True, True, True]
@@ -152,10 +150,8 @@ class Resnet12Backbone(nn.Module):
         return x
 
 
-
-def Resnet12(**kwargs):
-
-    return Resnet12Backbone(**kwargs)
+def resnet12(args):
+    return Resnet12Backbone(base_channels=args.base_channels)
 
 
 if __name__ == '__main__':

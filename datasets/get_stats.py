@@ -1,7 +1,7 @@
 import os
 import json
 
-from datasets.utils import get_anno_stats
+from datasets.data_utils import get_anno_stats
 
 
 def get_bndbox_size_ratio(anno_root, output_path=None):
