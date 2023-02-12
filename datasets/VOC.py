@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 from datasets.data_utils import get_anno_stats
 import numpy as np
 import torch.nn.functional as F
+from torch.utils.data import DataLoader
 from utils.common_types import _size_2_t
 IMG_EXTENSIONS = (".jpg", ".jpeg", ".png", ".ppm", ".bmp", ".pgm", ".tif", ".tiff", ".webp")
 
@@ -338,8 +339,9 @@ if __name__ == '__main__':
 
     transform = torchvision.transforms.Compose([torchvision.transforms.Resize((256,256)), torchvision.transforms.ToTensor()])
 
-    dataset = VOCDataset(root=os.path.join(dir,'root'), anno_root=os.path.join(dir, 'annotations'), transform=transform, per_size=64)
-    img, bb, target = dataset[600]
-    t = torchvision.transforms.ToPILImage()
-    t(img).show()
-    t(bb).show()
+    dataset = VOCDataset(root=os.path.join(dir,'root'), anno_root=os.path.join(dir, 'annotations'), transform=transform, per_size=None)
+    dataloader = DataLoader(dataset, batch_size=1, num_workers=0, shuffle=True)
+    for img, bb, target in dataloader:
+        t = torchvision.transforms.ToPILImage()
+        t(img[0]).show()
+        print(target)

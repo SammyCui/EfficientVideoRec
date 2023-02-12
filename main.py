@@ -5,7 +5,7 @@ import ctypes
 
 
 if __name__ == '__main__':
-    #args = args_parser()
+    # args = args_parser()
     args= DebugArgs()
     trainer = BaseTrainer(args)
     trainer.train()

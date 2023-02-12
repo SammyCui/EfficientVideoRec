@@ -5,7 +5,7 @@ from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
-from backbones.resnet import resnet12
+from backbones.resnet import resnet12, resnet18
 from datasets.VOC import VOCDataset
 from models.foveated_encoder import *
 from models.benchmark import Benchmark
@@ -79,7 +79,7 @@ def get_model_optimizer(args):
     return model, optimizer, lr_scheduler
 
 def get_dataloaders(args):
-    transform = transforms.Compose([transforms.Resize(256),
+    transform = transforms.Compose([transforms.Resize((256, 256)),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean, std)])
     train_dataset = VOCDataset(root=os.path.join(args.train_root, 'root'), anno_root=os.path.join(args.train_root, 'annotations'),
@@ -94,9 +94,9 @@ def get_dataloaders(args):
                               cls_to_use=DEFAULT_CLS,
                               transform=transform,
                               per_size=args.per_size)
-    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.num_workers)
-    val_dataloader   = DataLoader(val_dataset,   batch_size=args.batch_size, num_workers=args.num_workers)
-    test_dataloader  = DataLoader(test_dataset,  batch_size=args.batch_size, num_workers=args.num_workers)
+    train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
+    val_dataloader   = DataLoader(val_dataset,   batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
+    test_dataloader  = DataLoader(test_dataset,  batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     return train_dataloader, val_dataloader, test_dataloader
 
 
@@ -108,13 +108,12 @@ def args_parser():
     parser.add_argument('--start_epoch', type=int, default=0)
     parser.add_argument('--max_epoch', type=int, default=100)
 
-    parser.add_argument('--backbone', type=str, nargs='?', const='resnet12', default='resnet12')
+    parser.add_argument('--backbone', type=str, nargs='?', const='resnet18', default='resnet18')
     parser.add_argument('--model', type=str, nargs='?', const='Benchmark', default='Benchmark')
     parser.add_argument('--backbone_out_dim', type=int, nargs='?', const=512, default=512)
     parser.add_argument('--pe', type=str, nargs='?', const=None,default=None)
     parser.add_argument('--per_size', type=int, nargs='?', const=None, default=None)
     parser.add_argument('--base_channels', type=int, nargs='?', const=64, default=64)
-
 
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--optimizer', type=str, default='adam')
@@ -126,12 +125,13 @@ def args_parser():
 
     parser.add_argument('--num_workers', type=int, default=16)
     parser.add_argument('--batch_size', type=int, default=32)
-    parser.add_argument('--device', type=str, default="cuda:0" if torch.cuda.is_available() else "cpu")
+    parser.add_argument('--device', type=str, default='gpu')
     parser.add_argument('--val_interval', type=int, default=1)
     parser.add_argument('--result_dir', type=str, default='./result')
     parser.add_argument('--download', type=str, default='False', nargs='?', const='False')
     parser.add_argument('--save', type=str, default='False', nargs='?', const='False')
     parser.add_argument('--resume', type=str, default=None, nargs='?', const=None)
+    parser.add_argument('--pretrained', type=str, default='False')
     parser.add_argument('--init_backbone', type=str, default=None, nargs='?', const=None)
 
     args = parser.parse_args()
@@ -144,6 +144,10 @@ def post_process_args(args):
     args.train_root = os.path.join(args.root, 'train')
     args.val_root = os.path.join(args.root, 'val')
     args.test_root = os.path.join(args.root, 'test')
+    args.pretrained = eval(args.pretrained)
+    args.num_classes = len(DEFAULT_CLS)
+    if args.device == 'gpu':
+        args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
     return args
 
 
@@ -151,7 +155,7 @@ class DebugArgs:
     def __init__(self,
 
                  root: str = '/Users/xuanmingcui/Documents/projects/cnslab/cnslab/SequentialTraining/datasets/VOC2012_filtered',
-                 backbone: str = 'resnet12',
+                 backbone: str = 'resnet18',
                  model: str = 'Benchmark',
                  backbone_out_dim: int = 512,
                  pe: str = None,
@@ -163,12 +167,14 @@ class DebugArgs:
                  optimizer: str = 'adam',
                  lr_scheduler: str = 'step',
                  step_size: int = 20,
+                 num_classes: int = 10,
                  gamma: float = 0.2,
                  momentum: float = 0.9,
                  weight_decay: float = 0.0005,
                  val_interval: int = 1,
                  num_workers: int = 1,
-                 batch_size: int = 1,
+                 batch_size: int = 2,
+                 pretrained: bool = False,
                  download: bool = False,
                  device: str = 'cpu',
                  result_dir: str = './checkpoints',
@@ -187,12 +193,14 @@ class DebugArgs:
         self.num_workers = num_workers
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
+        self.num_classes = num_classes
         self.lr = lr
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.step_size = step_size
         self.gamma = gamma
         self.momentum = momentum
+        self.pretrained = pretrained
         self.weight_decay = weight_decay
         self.batch_size = batch_size
         self.val_interval = val_interval

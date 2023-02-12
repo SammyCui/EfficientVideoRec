@@ -30,6 +30,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         self.model.to(self.device)
         self.train_dataloader, self.val_dataloader, self.test_dataloader = get_dataloaders(args)
         self.best_model_params = None
+        print(json.dumps(vars(args), indent=2))
 
     def train(self):
         print('==> Training Start')
@@ -44,7 +45,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
                 self.train_step += 1
                 data, labels = data.to(self.device), labels.to(self.device)
-                if bb:
+                if self.args.per_size:
                     bb = bb.to(self.device)
 
                 forward_t0 = timer()
@@ -87,7 +88,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         with torch.no_grad():
             for data, bb, labels in self.val_dataloader:
                 data, labels = data.to(self.device), labels.to(self.device)
-                if bb:
+                if self.args.per_size:
                     bb = bb.to(self.device)
                 outputs = self.model(data, bb)
 
@@ -179,8 +180,8 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         test_loss, test_acc = StatsMeter(), StatsMeter()
         with torch.no_grad():
             for data, bb, labels in self.val_dataloader:
-                data, label = data.to(self.device), label.to(self.device)
-                if bb:
+                data, labels = data.to(self.device), labels.to(self.device)
+                if self.args.per_size:
                     bb = bb.to(self.device)
                 outputs = self.model(data, bb)
 
@@ -199,3 +200,5 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             self.__class__.__name__,
             self.model.__class__.__name__
         )
+
+

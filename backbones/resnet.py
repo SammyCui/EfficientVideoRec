@@ -2,6 +2,9 @@ from typing import Optional
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision
+from torch.hub import load_state_dict_from_url
+
 from backbones.dropblock import DropBlock
 
 
@@ -20,6 +23,46 @@ def conv3x3(in_planes: int, out_planes: int, stride: int = 1, groups: int = 1, d
 
 
 class BasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
+                 base_width=64, dilation=1, norm_layer=None):
+        super(BasicBlock, self).__init__()
+        if norm_layer is None:
+            norm_layer = nn.BatchNorm2d
+        if groups != 1 or base_width != 64:
+            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+        if dilation > 1:
+            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
+        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
+        self.conv1 = conv3x3(inplanes, planes, stride)
+        self.bn1 = norm_layer(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = conv3x3(planes, planes)
+        self.bn2 = norm_layer(planes)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+
+        return out
+
+
+class BasicDropBlock(nn.Module):
     expansion: int = 1
 
     def __init__(self, inplanes: int,
@@ -87,11 +130,11 @@ class BasicBlock(nn.Module):
 
 class Resnet12Backbone(nn.Module):
 
-    def __init__(self, block=BasicBlock,
+    def __init__(self, block=BasicDropBlock,
                  dropblock_size: int = 1,
                  embedding_dropout: float = 0,  # dropout for embedding
                  dropblock_dropout: float = 0.1,  # dropout rate for residual layes
-                 base_channels: int = 64,           # number of
+                 base_channels: int = 64,  # number of
                  channels: int = 3,
                  domaxpool: bool = False
                  ):
@@ -150,8 +193,58 @@ class Resnet12Backbone(nn.Module):
         return x
 
 
+class Resnet18Backbone(torchvision.models.resnet.ResNet):
+    def __init__(self, block, layers, base_channels, domaxpool):
+        super().__init__(block, layers)
+        self.inplanes = base_channels
+        self.domaxpool = domaxpool
+        channels = [base_channels * 2 ** i for i in range(4)]
+
+
+        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+
+        self.layer1 = self._make_layer(block, channels[0], layers[0])
+        self.layer2 = self._make_layer(block, channels[1], layers[1], stride=2)
+        self.layer3 = self._make_layer(block, channels[2], layers[2], stride=2)
+        self.layer4 = self._make_layer(block, channels[3], layers[3], stride=2)
+
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, (nn.BatchNorm2d, nn.GroupNorm)):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+
+    def _forward_impl(self, x):
+        # See note [TorchScript super()]
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        if self.domaxpool:
+            x = self.maxpool(x)
+
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+
+        return x
+
 def resnet12(args):
-    return Resnet12Backbone(base_channels=args.base_channels)
+    return Resnet12Backbone(block=BasicDropBlock, base_channels=args.base_channels)
+
+
+def resnet18(args):
+    model = Resnet18Backbone(block=BasicBlock, layers=[2, 2, 2, 2], base_channels=args.base_channels, domaxpool=False)
+    if args.pretrained:
+        state_dict = load_state_dict_from_url('https://download.pytorch.org/models/resnet18-5c106cde.pth',
+                                              progress=True)
+        model.load_state_dict(state_dict)
+
+    return model
+
 
 
 if __name__ == '__main__':
