@@ -89,7 +89,7 @@ class T(torchvision.datasets.VisionDataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
         if self.per_size:
-            sample = F.interpolate(sample, size=self.per_size)
+            sample = F.interpolate(sample, size=self.per_size, align_corners=False)
         return sample, bndbox, target
 
     def _find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
@@ -217,38 +217,46 @@ class VOCDataset(torchvision.datasets.VisionDataset):
             tuple: (sample, target) where target is class_index of the target class.
         """
         path, bndbox, target = self.samples[index]
+
         if self.loader:
             sample = self.loader(path)
         else:
             sample = Image.open(path)
+        if self.per_size:
+            bndbox = sample.crop(bndbox)
         w, h = sample.size
         if self.transform is not None:
-            sample = self.transform(sample)
             if self.per_size:
-                if isinstance(sample, Iterable):
-                    transformed_h, transformed_w = sample.shape[1], sample.shape[2]
-                else:
-                    transformed_w, transformed_h = sample.size # PIL image size: (w, h)
-                if transformed_w != w or transformed_h != h: # if the image is resized, the bndbox loc has to be resized too
-                    x_scalar, y_scalar = transformed_w / w, transformed_h / h
-                    x_min, y_min, x_max, y_max = bndbox
-                    new_x_min, new_x_max = x_min * x_scalar, x_max * x_scalar
-                    new_y_min, new_y_max = y_min * y_scalar, y_max * y_scalar
-                    bndbox = round(new_x_min), round(new_y_min), round(new_x_max), round(new_y_max)
-        if bndbox:
-            bndbox = sample[..., bndbox[1]:bndbox[3], bndbox[0]:bndbox[2]]
-            # if the bounding box is too small: < 9, pad it to >=9
-            if bndbox.shape[1] < 9:
-                padding = int(np.ceil(9 - bndbox.shape[1]) / 2)
-                bndbox = F.pad(bndbox, (0, 0, padding, padding))
-            if bndbox.shape[2] < 9:
-                padding = int(np.ceil(9 - bndbox.shape[2]) / 2)
-                bndbox = F.pad(bndbox, (padding, padding, 0, 0))
+                bndbox = self.transform(bndbox)
+            sample = self.transform(sample)
+        #     if self.per_size:
+        #         if isinstance(sample, Iterable):
+        #             transformed_h, transformed_w = sample.shape[1], sample.shape[2]
+        #         else:
+        #             transformed_w, transformed_h = sample.size # PIL image size: (w, h)
+        #         if transformed_w != w or transformed_h != h: # if the image is resized, the bndbox loc has to be resized too
+        #             x_scalar, y_scalar = transformed_w / w, transformed_h / h
+        #             x_min, y_min, x_max, y_max = bndbox
+        #             new_x_min, new_x_max = x_min * x_scalar, x_max * x_scalar
+        #             new_y_min, new_y_max = y_min * y_scalar, y_max * y_scalar
+        #             bndbox = round(new_x_min), round(new_y_min), round(new_x_max), round(new_y_max)
+        # if bndbox:
+        #     bndbox = sample[..., bndbox[1]:bndbox[3], bndbox[0]:bndbox[2]]
+        #     # if the bounding box is too small: < 9, pad it to >=9
+        #     if bndbox.shape[1] < 9:
+        #         padding = int(np.ceil(9 - bndbox.shape[1]) / 2)
+        #         bndbox = F.pad(bndbox, (0, 0, padding, padding))
+        #     if bndbox.shape[2] < 9:
+        #         padding = int(np.ceil(9 - bndbox.shape[2]) / 2)
+        #         bndbox = F.pad(bndbox, (padding, padding, 0, 0))
         if self.target_transform is not None:
             target = self.target_transform(target)
         if self.per_size:
             sample = F.interpolate(sample.unsqueeze(0), size=self.per_size, mode='bilinear').squeeze(0)
-        return sample, bndbox, target
+        if self.per_size:
+            return sample, bndbox, target
+        else:
+            return sample, target
 
     def _find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
         """

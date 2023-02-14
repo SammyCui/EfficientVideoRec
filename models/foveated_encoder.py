@@ -46,12 +46,17 @@ class FE_WeightShare(nn.Module):
             backbone: Callable,
             pe: Optional[Callable],
             out_dim: int,
+            concat: bool,
             n_classes: int
     ):
         super().__init__()
 
         self.backbone = backbone
-        self.fc = nn.Linear(in_features=out_dim, out_features=n_classes)
+        self.concat = concat
+        if concat:
+            self.fc = nn.Linear(in_features=out_dim * 2, out_features=n_classes)
+        else:
+            self.fc = nn.Linear(in_features=out_dim, out_features=n_classes)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.pe = pe
 
@@ -64,7 +69,10 @@ class FE_WeightShare(nn.Module):
         if self.pe:
             fov_embeddings = self.pe(fov_embeddings)
         fov_embeddings = torch.flatten(fov_embeddings, 1)
-        x = torch.cat([fov_embeddings, per_embeddings], dim=1)
+        if self.concat:
+            x = torch.cat([fov_embeddings, per_embeddings], dim=1)
+        else:
+            x = fov_embeddings + per_embeddings
         x = self.fc(x)
         return x
 

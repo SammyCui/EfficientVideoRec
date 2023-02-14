@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
 from backbones.resnet import resnet12, resnet18
+
 from datasets.VOC import VOCDataset
 from models.foveated_encoder import *
 from models.benchmark import Benchmark
@@ -27,7 +28,7 @@ def get_model_optimizer(args):
     if args.model == 'Benchmark':
         model = Benchmark(backbone, out_dim=args.backbone_out_dim)
     elif args.model == 'FE_WeightShare':
-        model = FE_WeightShare(backbone, out_dim=args.backbone_out_dim, n_classes=10, pe=args.pe)
+        model = FE_WeightShare(backbone, out_dim=args.backbone_out_dim, n_classes=10, pe=args.pe, concat=args.concat)
     else:
         raise Exception('Model not implemented')
 
@@ -79,9 +80,14 @@ def get_model_optimizer(args):
     return model, optimizer, lr_scheduler
 
 def get_dataloaders(args):
-    transform = transforms.Compose([transforms.Resize((256, 256)),
+    transform = transforms.Compose([
+                                    transforms.Resize((256, 256)),
                                     transforms.ToTensor(),
-                                    transforms.Normalize(mean, std)])
+                                    transforms.Normalize(mean, std)
+                                    ])
+
+    # train_dataset = torchvision.datasets.CIFAR10(root='./dataset', train=True, transform=transform, download=True)
+    # val_dataset = torchvision.datasets.CIFAR10(root='./dataset', train=False, transform=transform, download=True)
     train_dataset = VOCDataset(root=os.path.join(args.train_root, 'root'), anno_root=os.path.join(args.train_root, 'annotations'),
                                cls_to_use=DEFAULT_CLS,
                                transform=transform,
@@ -114,6 +120,7 @@ def args_parser():
     parser.add_argument('--pe', type=str, nargs='?', const=None,default=None)
     parser.add_argument('--per_size', type=int, nargs='?', const=None, default=None)
     parser.add_argument('--base_channels', type=int, nargs='?', const=64, default=64)
+    parser.add_argument('--concat', type=str, default='False')
 
     parser.add_argument('--lr', type=float, default=0.001)
     parser.add_argument('--optimizer', type=str, default='adam')
@@ -145,6 +152,7 @@ def post_process_args(args):
     args.val_root = os.path.join(args.root, 'val')
     args.test_root = os.path.join(args.root, 'test')
     args.pretrained = eval(args.pretrained)
+    args.concat = eval(args.concat)
     args.num_classes = len(DEFAULT_CLS)
     if args.device == 'gpu':
         args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -156,10 +164,11 @@ class DebugArgs:
 
                  root: str = '/Users/xuanmingcui/Documents/projects/cnslab/cnslab/SequentialTraining/datasets/VOC2012_filtered',
                  backbone: str = 'resnet18',
-                 model: str = 'Benchmark',
+                 model: str = 'FE_WeightShare',
                  backbone_out_dim: int = 512,
                  pe: str = None,
-                 per_size: int = None,
+                 per_size: int = 64,
+                 concat: bool = False,
                  base_channels: int = 64,
                  start_epoch: int = 0,
                  max_epoch: int = 200,
@@ -190,6 +199,7 @@ class DebugArgs:
         self.base_channels = base_channels
         self.model = model
         self.download = download
+        self.concat = concat
         self.num_workers = num_workers
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch

@@ -41,15 +41,20 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
             train_loss, train_acc = AverageMeter(), AverageMeter()
 
-            for data, bb, labels in self.train_dataloader:
+            for batch in self.train_dataloader:
 
                 self.train_step += 1
-                data, labels = data.to(self.device), labels.to(self.device)
+
                 if self.args.per_size:
-                    bb = bb.to(self.device)
+                    data, bb, labels = batch
+                    data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
+                    data = (data, bb)
+                else:
+                    data, labels = batch
+                    data, labels = data.to(self.device), labels.to(self.device)
 
                 forward_t0 = timer()
-                outputs = self.model(data, bb)
+                outputs = self.model(*data)
                 forward_t1 = timer()
 
                 loss = F.cross_entropy(outputs, labels)
@@ -86,11 +91,15 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         self.model.eval()
         val_loss, val_acc = StatsMeter(), StatsMeter()
         with torch.no_grad():
-            for data, bb, labels in self.val_dataloader:
-                data, labels = data.to(self.device), labels.to(self.device)
+            for batch in self.val_dataloader:
                 if self.args.per_size:
-                    bb = bb.to(self.device)
-                outputs = self.model(data, bb)
+                    data, bb, labels = batch
+                    data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
+                    data = (data, bb)
+                else:
+                    data, labels = batch
+                    data, labels = data.to(self.device), labels.to(self.device)
+                outputs = self.model(*data)
 
                 loss = F.cross_entropy(outputs, labels)
                 acc = accuracy(outputs, labels)[0]
@@ -153,7 +162,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             'forward_timer  (avg): {:.2f} sec  \n' \
             'backward_timer (avg): {:.2f} sec, \n' \
             'optim_timer (avg): {:.2f} sec \n' \
-            'epoch_timer (avg): {:.2f} hrs \n' \
+            'epoch_timer (avg): {:.5f} hrs \n' \
             'total time to converge: {:.2f} hrs' \
                 .format(
                     self.forward_tm.avg, self.backward_tm.avg,
@@ -167,7 +176,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                 self.result_log['max_val_acc']))
             f.write('Test acc={:.4f}\n'.format(
                 self.result_log['test_acc']))
-            f.write('Total time to converge: {:.3f} hrs, per epoch: {:.3f} hrs'
+            f.write('Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
                     .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
 
         self.logger.close()
@@ -179,11 +188,15 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
         test_loss, test_acc = StatsMeter(), StatsMeter()
         with torch.no_grad():
-            for data, bb, labels in self.val_dataloader:
-                data, labels = data.to(self.device), labels.to(self.device)
+            for batch in self.val_dataloader:
                 if self.args.per_size:
-                    bb = bb.to(self.device)
-                outputs = self.model(data, bb)
+                    data, bb, labels = batch
+                    data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
+                    data = (data, bb)
+                else:
+                    data, labels = batch
+                    data, labels = data.to(self.device), labels.to(self.device)
+                outputs = self.model(*data)
 
                 loss = F.cross_entropy(outputs, labels)
                 acc = accuracy(outputs, labels)[0]

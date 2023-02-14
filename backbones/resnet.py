@@ -237,7 +237,7 @@ def resnet12(args):
 
 
 def resnet18(args):
-    model = Resnet18Backbone(block=BasicBlock, layers=[2, 2, 2, 2], base_channels=args.base_channels, domaxpool=False)
+    model = Resnet18Backbone(block=BasicBlock, layers=[2, 2, 2, 2], base_channels=args.base_channels, domaxpool=True)
     if args.pretrained:
         state_dict = load_state_dict_from_url('https://download.pytorch.org/models/resnet18-5c106cde.pth',
                                               progress=True)
