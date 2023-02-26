@@ -23,8 +23,8 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
         self.train_time, self.forward_tm, self.backward_tm, self.optimize_tm = (AverageMeter(),) * 4
 
-        self.result_log = {'max_val_acc': 0,
-                           'max_val_acc_epoch': 0}
+        self.result_log = {'max_val_acc@1': 0,
+                           'max_val_acc@1_epoch': 0}
 
         self.model, self.optimizer, self.lr_scheduler = get_model_optimizer(args)
         self.model.to(self.device)
@@ -227,8 +227,8 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             print('inference images: {:.2f} per sec'.format(self.img_per_sec))
 
             with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
-                f.write('Test acc={:.4f}\n'.format(
-                    self.result_log['test_acc']))
+                f.write('Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
+                    self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
                 f.write('inference images: {:.2f} per sec'.format(self.img_per_sec))
 
         self.logger.close()

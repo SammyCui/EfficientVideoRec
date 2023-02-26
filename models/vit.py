@@ -2,24 +2,26 @@ import timm.models.vision_transformer
 import torch
 from timm.models.helpers import checkpoint_seq, resolve_pretrained_cfg, build_model_with_cfg
 from torch import nn
-from timm.models.vision_transformer import VisionTransformer, _create_vision_transformer, checkpoint_filter_fn
-from models.reducer import BaseReducer
+from timm.models.vision_transformer import VisionTransformer
+from models.reducer import BaseReducer, RandomReducer
 
 
 class ReduceViT(VisionTransformer):
-    def __init__(self, reducer_inner_dim, keep_ratio, **kwargs):
+    def __init__(self, reducer, reducer_inner_dim, keep_ratio, **kwargs):
         super().__init__(**kwargs)
-        self.reducer = BaseReducer(patch_size=kwargs.get('patch_size'),
+        self.reducer = eval(reducer)(patch_size=kwargs.get('patch_size'),
                                    in_chans=kwargs.get('in_chans', 3),
                                    dim=reducer_inner_dim,
                                    keep_ratio=keep_ratio)
 
     def forward_features(self, x):
         keep_ind = self.reducer(x)
+        # offset indices by 1 for cls token
+        keep_ind = torch.cat((torch.zeros((x.shape[0],1), device=x.device), keep_ind + 1), dim=-1)
         x = self.patch_embed(x)
         x = self._pos_embed(x)
         x = self.norm_pre(x)
-        x = x[torch.arange(x.shape[0]).unsqueeze(1), keep_ind]
+        x = x[torch.arange(x.shape[0]).unsqueeze(1), keep_ind.long()]
         if self.grad_checkpointing and not torch.jit.is_scripting():
             x = checkpoint_seq(self.blocks, x)
         else:
@@ -39,6 +41,7 @@ def reducer_vit_tiny_patch16_224(args):
                                  pretrained=args.pretrained,
                                  pretrained_cfg=pretrained_cfg,
                                  pretrained_custom_load='npz' in pretrained_cfg['url'],
+                                 reducer=args.reducer,
                                  reducer_inner_dim=args.reducer_inner_dim,
                                  keep_ratio=args.keep_ratio,
                                  patch_size=16, embed_dim=192, depth=12, num_heads=3, num_classes=args.num_classes,

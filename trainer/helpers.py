@@ -123,6 +123,7 @@ def args_parser():
     parser.add_argument('--max_epoch', type=int, default=100)
     parser.add_argument('--train', type=str, default='True')
     parser.add_argument('--mode', type=str, default='reducer-img')
+    parser.add_argument('--reducer', type=str, default='RandomReducer')
     parser.add_argument('--patch_size', type=int, default=16)
 
     parser.add_argument('--object_only', type=str, default='False')
@@ -176,7 +177,7 @@ def post_process_args(args):
         args.num_classes = 10
         args.cls_to_use = DEFAULT_CLS
     else:
-        args.num_classes = None
+        args.num_classes = 20
         args.cls_to_use = None
     if args.device == 'gpu':
         args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -199,6 +200,7 @@ class DebugArgs:
                  concat: bool = False,
                  base_channels: int = 64,
                  start_epoch: int = 0,
+                 reducer: str = 'BaseReducer',
                  object_only: bool = False,
                  max_epoch: int = 200,
                  lr: float = 0.001,
@@ -231,6 +233,7 @@ class DebugArgs:
         self.per_size = per_size
         self.base_channels = base_channels
         self.model = model
+        self.reducer = reducer
         self.reducer_inner_dim = reducer_inner_dim
         self.object_only = object_only
         self.download = download
