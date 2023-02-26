@@ -194,7 +194,7 @@ class Resnet12Backbone(nn.Module):
 
 
 class Resnet18Backbone(torchvision.models.resnet.ResNet):
-    def __init__(self, block, layers, base_channels, domaxpool):
+    def __init__(self, block, layers, base_channels = 64, domaxpool = True):
         super().__init__(block, layers)
         self.inplanes = base_channels
         self.domaxpool = domaxpool
@@ -248,6 +248,6 @@ def resnet18(args):
 
 
 if __name__ == '__main__':
-    bb = Resnet12Backbone(domaxpool=False)
-    inp = torch.zeros((1, 3, 9, 31))
+    bb = Resnet18Backbone(block=BasicBlock, layers=[2, 2, 2, 2], base_channels=64, domaxpool=True)
+    inp = torch.zeros((1, 3, 224, 224))
     print(bb(inp).shape)

@@ -8,7 +8,7 @@ from utils.meters import AverageMeter, StatsMeter
 from utils.metric import accuracy
 from timeit import default_timer as timer
 
-from utils.helpers import get_model_optimizer, get_dataloaders
+from trainer.helpers import get_model_optimizer, get_dataloaders
 
 
 class BaseTrainer(metaclass=abc.ABCMeta):
@@ -29,6 +29,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         self.model, self.optimizer, self.lr_scheduler = get_model_optimizer(args)
         self.model.to(self.device)
         self.train_dataloader, self.val_dataloader, self.test_dataloader = get_dataloaders(args)
+        self.img_per_sec = None
         self.best_model_params = None
         print(json.dumps(vars(args), indent=2))
 
@@ -39,7 +40,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
             self.model.train()
 
-            train_loss, train_acc = AverageMeter(), AverageMeter()
+            train_loss, train_acc_1, train_acc_3, train_acc_5 = (AverageMeter(),) * 4
 
             for batch in self.train_dataloader:
 
@@ -51,14 +52,14 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                     data = (data, bb)
                 else:
                     data, labels = batch
-                    data, labels = data.to(self.device), labels.to(self.device)
+                    data, labels = (data.to(self.device), ), labels.to(self.device)
 
                 forward_t0 = timer()
                 outputs = self.model(*data)
                 forward_t1 = timer()
 
                 loss = F.cross_entropy(outputs, labels)
-                acc  = accuracy(outputs, labels)[0]
+                acc_1, acc_3, acc_5  = accuracy(outputs, labels, topk=(1,3,5))
 
                 self.optimizer.zero_grad()
                 backward_t0 = timer()
@@ -70,26 +71,28 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                 optimizer_t1 = timer()
 
                 train_loss.update(loss.item())
-                train_acc.update(acc[0].item())
+                train_acc_1.update(acc_1[0].item())
+                train_acc_3.update(acc_3[0].item())
+                train_acc_5.update(acc_5[0].item())
                 self.backward_tm.update(backward_t1-backward_t0)
                 self.forward_tm.update(forward_t1-forward_t0)
                 self.optimize_tm.update(optimizer_t1-optimizer_t0)
 
             if self.lr_scheduler:
                 self.lr_scheduler.step()
-            val_acc, val_loss = self.validate()
+            val_acc_1, val_acc_3, val_acc_5, val_loss = self.validate()
 
             epoch_t1 = timer()
             self.train_time.update(epoch_t1-epoch_t0)
             epoch_t0 = epoch_t1
 
-            self.logging(train_loss=train_loss.avg, train_acc=train_acc.avg,
-                         val_loss=val_loss, val_acc=val_acc)
+            self.logging(train_loss=train_loss.avg, train_acc=train_acc_1.avg,
+                         val_loss=val_loss, val_acc=val_acc_1)
             self.train_epoch += 1
 
     def _validate(self):
         self.model.eval()
-        val_loss, val_acc = StatsMeter(), StatsMeter()
+        val_loss, val_acc_1, val_acc_3, val_acc_5 = (StatsMeter(),) * 4
         with torch.no_grad():
             for batch in self.val_dataloader:
                 if self.args.per_size:
@@ -98,30 +101,34 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                     data = (data, bb)
                 else:
                     data, labels = batch
-                    data, labels = data.to(self.device), labels.to(self.device)
+                    data, labels = (data.to(self.device), ), labels.to(self.device)
                 outputs = self.model(*data)
 
                 loss = F.cross_entropy(outputs, labels)
-                acc = accuracy(outputs, labels)[0]
+                acc_1, acc_3, acc_5 = accuracy(outputs, labels, topk=(1,3,5))
 
                 val_loss.update(loss.item())
-                val_acc.update(acc[0].item())
+                val_acc_1.update(acc_1[0].item())
+                val_acc_3.update(acc_3[0].item())
+                val_acc_5.update(acc_5[0].item())
 
 
-        return val_acc.avg, val_loss.avg
+        return val_acc_1.avg, val_acc_3.avg, val_acc_5.avg, val_loss.avg
 
     def validate(self):
         if self.train_epoch % self.args.val_interval == 0:
-            val_acc, val_loss = self._validate()
+            val_acc_1, val_acc_3, val_acc_5, val_loss = self._validate()
 
-            if val_acc >= self.result_log['max_val_acc']:
-                self.result_log['max_val_acc'] = val_acc
-                self.result_log['max_val_acc_epoch'] = self.train_epoch
+            if val_acc_1 >= self.result_log['max_val_acc@1']:
+                self.result_log['max_val_acc@1'] = val_acc_1
+                self.result_log['max_val_acc@1_epoch'] = self.train_epoch
+                self.result_log['val_acc@3_@maxacc@1'] = val_acc_3
+                self.result_log['val_acc@5_@maxacc@1'] = val_acc_5
                 self.best_model_params = self.model.state_dict()
                 if self.args.save:
                     self.save_model('checkpoint')
 
-            return val_acc, val_loss
+            return val_acc_1, val_acc_3, val_acc_5, val_loss
 
     def save_model(self, name):
         assert self.model is not None, "No models to be saved."
@@ -140,7 +147,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
         if self.train_epoch % self.args.val_interval == 0:
             print('epoch {}/{}, **Train** loss={:.4f} acc={:.4f} | ' \
-                  '**Val** loss={:.4f} acc={:.4f}, lr={:.4g}'
+                  '**Val** loss={:.4f} acc@1={:.4f}, lr={:.4g}'
                   .format(self.train_epoch,
                           self.max_epoch,
                           train_loss, train_acc,
@@ -149,7 +156,40 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             self.logger.add_scalar('train_loss', train_loss, self.train_epoch)
             self.logger.add_scalar('train_acc', train_acc, self.train_epoch)
             self.logger.add_scalar('val_loss', val_loss, self.train_epoch)
-            self.logger.add_scalar('val_acc', val_acc, self.train_epoch)
+            self.logger.add_scalar('val_acc@1', val_acc, self.train_epoch)
+
+    def test(self, param):
+        print('==> Testing start')
+        if param:
+            self.model.load_state_dict(param)
+        self.model.eval()
+        t0 = timer()
+        test_loss, test_acc_1, test_acc_3, test_acc_5 = (StatsMeter(),) * 4
+        with torch.no_grad():
+            for batch in self.test_dataloader:
+                if self.args.per_size:
+                    data, bb, labels = batch
+                    data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
+                    data = (data, bb)
+                else:
+                    data, labels = batch
+                    data, labels = (data.to(self.device), ), labels.to(self.device)
+                outputs = self.model(*data)
+
+                loss = F.cross_entropy(outputs, labels)
+                acc_1, acc_3, acc_5 = accuracy(outputs, labels, topk=(1,3,5))
+
+                test_loss.update(loss.item())
+                test_acc_1.update(acc_1[0].item())
+                test_acc_3.update(acc_3[0].item())
+                test_acc_5.update(acc_5[0].item())
+
+        self.img_per_sec = (timer() - t0)/(len(self.test_dataloader) * self.args.batch_size)
+
+        self.result_log['test_acc@1'] = test_acc_1.avg
+        self.result_log['test_acc@3'] = test_acc_3.avg
+        self.result_log['test_acc@5'] = test_acc_5.avg
+        self.result_log['test_loss'] = test_loss.avg
 
     def finish(self):
         self.logger.save_logger()
@@ -158,60 +198,48 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         for k, v in self.result_log.items():
             print(k, ': ', '{:.3f}'.format(v))
 
-        print(
-            'forward_timer  (avg): {:.2f} sec  \n' \
-            'backward_timer (avg): {:.2f} sec, \n' \
-            'optim_timer (avg): {:.2f} sec \n' \
-            'epoch_timer (avg): {:.5f} hrs \n' \
-            'total time to converge: {:.2f} hrs' \
-                .format(
-                    self.forward_tm.avg, self.backward_tm.avg,
-                    self.optimize_tm.avg, self.train_time.avg / 3600,
-                    self.train_time.sum / 3600
-                )
-        )
-        with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
-            f.write('best epoch {}, best val acc={:.4f}\n'.format(
-                self.result_log['max_val_acc_epoch'],
-                self.result_log['max_val_acc']))
-            f.write('Test acc={:.4f}\n'.format(
-                self.result_log['test_acc']))
-            f.write('Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
-                    .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
+        if self.args.train:
+            print(
+                'forward_timer  (avg): {:.2f} sec  \n' \
+                'backward_timer (avg): {:.2f} sec, \n' \
+                'optim_timer (avg): {:.2f} sec \n' \
+                'epoch_timer (avg): {:.5f} hrs \n' \
+                'total time to converge: {:.2f} hrs' \
+                'inference images: {:.2f} per sec'
+                    .format(
+                        self.forward_tm.avg, self.backward_tm.avg,
+                        self.optimize_tm.avg, self.train_time.avg / 3600,
+                        self.train_time.sum / 3600,
+                        self.img_per_sec
+                    )
+            )
+
+            with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
+                f.write('best epoch {}, best val acc={:.4f}\n'.format(
+                    self.result_log['max_val_acc@1_epoch'],
+                    self.result_log['max_val_acc@1']))
+                f.write('Test acc={:.4f}\n'.format(
+                    self.result_log['test_acc']))
+                f.write('Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
+                        .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
+
+        else:
+            print('inference images: {:.2f} per sec'.format(self.img_per_sec))
+
+            with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
+                f.write('Test acc={:.4f}\n'.format(
+                    self.result_log['test_acc']))
+                f.write('inference images: {:.2f} per sec'.format(self.img_per_sec))
 
         self.logger.close()
 
-    def test(self):
-        print('==> Testing start')
-        self.model.load_state_dict(self.best_model_params)
-        self.model.eval()
-
-        test_loss, test_acc = StatsMeter(), StatsMeter()
-        with torch.no_grad():
-            for batch in self.val_dataloader:
-                if self.args.per_size:
-                    data, bb, labels = batch
-                    data, bb, labels = data.to(self.device), bb.to(self.device), labels.to(self.device)
-                    data = (data, bb)
-                else:
-                    data, labels = batch
-                    data, labels = data.to(self.device), labels.to(self.device)
-                outputs = self.model(*data)
-
-                loss = F.cross_entropy(outputs, labels)
-                acc = accuracy(outputs, labels)[0]
-
-                test_loss.update(loss.item())
-                test_acc.update(acc[0].item())
-
-
-        self.result_log['test_acc'] = test_acc.avg
-        self.result_log['test_loss'] = test_loss.avg
-
     def __str__(self):
-        return "{}({})".format(
+
+
+        return "{}({}). \n Args: {}".format(
             self.__class__.__name__,
-            self.model.__class__.__name__
+            self.model.__class__.__name__,
+            json.dumps(vars(self.args), indent=2)
         )
 
 

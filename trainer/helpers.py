@@ -4,6 +4,7 @@ import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
+from models.vit import reducer_vit_tiny_patch16_224, vit_tiny_patch16_224
 
 from backbones.resnet import resnet12, resnet18
 
@@ -16,21 +17,25 @@ DEFAULT_CLS = ['aeroplane', 'bicycle', 'bird', 'boat', 'bottle', 'bus', 'car', '
 mean, std = (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
 
 
-def make_tuple(x):
-    if isinstance(x, tuple):
-        return x
-    return x, x
+
 
 
 def get_model_optimizer(args):
 
-    backbone = eval(args.backbone)(args)
-    if args.model == 'Benchmark':
-        model = Benchmark(backbone, out_dim=args.backbone_out_dim)
-    elif args.model == 'FE_WeightShare':
-        model = FE_WeightShare(backbone, out_dim=args.backbone_out_dim, n_classes=10, pe=args.pe, concat=args.concat)
+    if args.mode == '2streamCNN':
+        backbone = eval(args.backbone)(args)
+        if args.model == 'Benchmark':
+            model = Benchmark(backbone, out_dim=args.backbone_out_dim)
+        elif args.model == 'FE_WeightShare':
+            model = FE_WeightShare(backbone, out_dim=args.backbone_out_dim, n_classes=10, pe=args.pe, concat=args.concat)
+        else:
+            raise Exception('Model not implemented')
+
+    elif args.mode == 'reducer-img':
+        model = eval(args.model)(args)
+
     else:
-        raise Exception('Model not implemented')
+        raise Exception('Mode not defined')
 
     if args.optimizer == 'sgd':
         optimizer = optim.SGD(model.parameters(),
@@ -81,7 +86,7 @@ def get_model_optimizer(args):
 
 def get_dataloaders(args):
     transform = transforms.Compose([
-                                    transforms.Resize((256, 256)),
+                                    transforms.Resize((224, 224)),
                                     transforms.ToTensor(),
                                     transforms.Normalize(mean, std)
                                     ])
@@ -91,15 +96,18 @@ def get_dataloaders(args):
     train_dataset = VOCDataset(root=os.path.join(args.train_root, 'root'), anno_root=os.path.join(args.train_root, 'annotations'),
                                cls_to_use=DEFAULT_CLS,
                                transform=transform,
-                               per_size=args.per_size)
+                               per_size=args.per_size,
+                               object_only=args.object_only)
     val_dataset = VOCDataset(root=os.path.join(args.val_root, 'root'), anno_root=os.path.join(args.val_root, 'annotations'),
                             cls_to_use=DEFAULT_CLS,
                             transform=transform,
-                            per_size=args.per_size)
+                            per_size=args.per_size,
+                            object_only=args.object_only)
     test_dataset = VOCDataset(root=os.path.join(args.test_root, 'root'), anno_root=os.path.join(args.test_root, 'annotations'),
                               cls_to_use=DEFAULT_CLS,
                               transform=transform,
-                              per_size=args.per_size)
+                              per_size=args.per_size,
+                              object_only=args.object_only)
     train_dataloader = DataLoader(train_dataset, batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     val_dataloader   = DataLoader(val_dataset,   batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
     test_dataloader  = DataLoader(test_dataset,  batch_size=args.batch_size, num_workers=args.num_workers, shuffle=True)
@@ -113,7 +121,13 @@ def args_parser():
     parser.add_argument('--root', type=str, nargs='?', const=DEFAULT_ROOT, default=DEFAULT_ROOT)
     parser.add_argument('--start_epoch', type=int, default=0)
     parser.add_argument('--max_epoch', type=int, default=100)
+    parser.add_argument('--train', type=str, default='True')
+    parser.add_argument('--mode', type=str, default='reducer-img')
+    parser.add_argument('--patch_size', type=int, default=16)
 
+    parser.add_argument('--subset_data', type=str, default='False')
+    parser.add_argument('--reducer_inner_dim', type=int, default=32)
+    parser.add_argument('--keep_ratio', type=float, default=0.8)
     parser.add_argument('--backbone', type=str, nargs='?', const='resnet18', default='resnet18')
     parser.add_argument('--model', type=str, nargs='?', const='Benchmark', default='Benchmark')
     parser.add_argument('--backbone_out_dim', type=int, nargs='?', const=512, default=512)
@@ -153,7 +167,13 @@ def post_process_args(args):
     args.test_root = os.path.join(args.root, 'test')
     args.pretrained = eval(args.pretrained)
     args.concat = eval(args.concat)
-    args.num_classes = len(DEFAULT_CLS)
+    args.train = eval(args.train)
+    args.object_only = eval(args.object_only)
+    args.subset_data = eval(args.subset_data)
+    # if subset data, take 10 default classes
+    if args.subset_data:
+        args.num_classes = 10
+        args.cls_to_use = DEFAULT_CLS
     if args.device == 'gpu':
         args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
     return args
@@ -165,46 +185,58 @@ class DebugArgs:
                  root: str = '/Users/xuanmingcui/Documents/projects/cnslab/cnslab/SequentialTraining/datasets/VOC2012_filtered',
                  backbone: str = 'resnet18',
                  model: str = 'FE_WeightShare',
+                 mode: str = 'reducer-img',
+                 keep_ratio: float = .8,
+                 reducer_inner_dim: int = 64,
+                 patch_size: int = 16,
                  backbone_out_dim: int = 512,
                  pe: str = None,
-                 per_size: int = 64,
+                 per_size: int = None,
                  concat: bool = False,
                  base_channels: int = 64,
                  start_epoch: int = 0,
+                 object_only: bool = False,
                  max_epoch: int = 200,
                  lr: float = 0.001,
                  optimizer: str = 'adam',
                  lr_scheduler: str = 'step',
                  step_size: int = 20,
-                 num_classes: int = 10,
                  gamma: float = 0.2,
+                 num_classes: int =10,
                  momentum: float = 0.9,
                  weight_decay: float = 0.0005,
+                 train: bool = True,
                  val_interval: int = 1,
                  num_workers: int = 1,
                  batch_size: int = 2,
-                 pretrained: bool = False,
+                 pretrained: bool = True,
                  download: bool = False,
                  device: str = 'cpu',
-                 result_dir: str = './checkpoints',
+                 result_dir: str = './results',
                  save: bool = False,
                  resume: bool = False,
                  init_backbone: bool = False):
 
         self.root = root
         self.backbone = backbone
+        self.mode = mode
+        self.keep_ratio = keep_ratio
+        self.patch_size = patch_size
         self.backbone_out_dim = backbone_out_dim
         self.pe = pe
         self.per_size = per_size
         self.base_channels = base_channels
         self.model = model
+        self.reducer_inner_dim = reducer_inner_dim
+        self.object_only = object_only
         self.download = download
         self.concat = concat
         self.num_workers = num_workers
+        self.num_classes = num_classes
         self.start_epoch = start_epoch
         self.max_epoch = max_epoch
-        self.num_classes = num_classes
         self.lr = lr
+        self.train = train
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.step_size = step_size
@@ -223,3 +255,4 @@ class DebugArgs:
         self.train_root = os.path.join(self.root, 'train')
         self.val_root = os.path.join(self.root, 'val')
         self.test_root = os.path.join(self.root, 'test')
+

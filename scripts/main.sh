@@ -19,9 +19,11 @@ source /u/erdos/cnslab/xcui32/venv/bin/activate
 
 python3 /u/erdos/cnslab/xcui32/EfficientVideoRec/main.py \
  --root '/u/erdos/students/xcui32/SequentialTraining/datasets/VOC2012/VOC2012_filtered/' \
+ --mode reducer-img --train True --patch_size 16 --reducer_inner_dim 32 --keep_ratio 0.8 \
  --backbone resnet18 --model Benchmark --backbone_out_dim 512 --pe --per_size --base_channels 64 \
  --start_epoch 0 --max_epoch 100 \
  --lr 0.001 --optimizer adam --lr_scheduler step --step_size 20 --gamma 0.2 \
  --momentum 0.9  --weight_decay 0.0005 --val_interval 1 \
- --num_workers 1 --batch_size 1 --device 'cuda:0' --download False --result_dir './results/benchmark' --save False --resume --init_backbone
+ --num_workers 1 --batch_size 1 --device 'cuda:0' --download False \
+ --result_dir './results/benchmark' --save False --resume --init_backbone --pretrained True
 

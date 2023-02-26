@@ -1,15 +1,16 @@
 from trainer.base import BaseTrainer
-from utils.helpers import args_parser, DebugArgs
-import ctypes
+from trainer.helpers import DebugArgs
+
 # libgcc_s = ctypes.CDLL('libgcc_s.so.1')
 
 
 if __name__ == '__main__':
     # args = args_parser()
-    args= DebugArgs()
+    args= DebugArgs(model='reducer_vit_tiny_patch16_224')
     trainer = BaseTrainer(args)
-    trainer.train()
-    trainer.test()
+    if args.train:
+        trainer.train()
+    trainer.test(trainer.best_model_params)
     trainer.finish()
 
 
