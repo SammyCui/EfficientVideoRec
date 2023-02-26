@@ -174,6 +174,9 @@ def post_process_args(args):
     if args.subset_data:
         args.num_classes = 10
         args.cls_to_use = DEFAULT_CLS
+    else:
+        args.num_classes = None
+        args.cls_to_use = None
     if args.device == 'gpu':
         args.device = "cuda:0" if torch.cuda.is_available() else "cpu"
     return args
