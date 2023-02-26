@@ -1,5 +1,5 @@
 from trainer.base import BaseTrainer
-from trainer.helpers import DebugArgs
+from trainer.helpers import args_parser, DebugArgs
 
 # libgcc_s = ctypes.CDLL('libgcc_s.so.1')
 

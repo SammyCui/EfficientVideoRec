@@ -125,6 +125,7 @@ def args_parser():
     parser.add_argument('--mode', type=str, default='reducer-img')
     parser.add_argument('--patch_size', type=int, default=16)
 
+    parser.add_argument('--object_only', type=str, default='False')
     parser.add_argument('--subset_data', type=str, default='False')
     parser.add_argument('--reducer_inner_dim', type=int, default=32)
     parser.add_argument('--keep_ratio', type=float, default=0.8)
