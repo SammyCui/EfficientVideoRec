@@ -56,12 +56,5 @@ class StatsMeter(AverageMeter):
         return h
 
 
-if __name__ == '__main__':
-    f = StatsMeter()
-
-    f.record = [1,3,2,4,5]
-    print(f.compute_ci())
-
-
 
 

@@ -29,13 +29,17 @@ class ReduceViT(VisionTransformer):
         x = self.norm(x)
         return x
 
-def reducer_vit_tiny_patch16_224(args):
-    variant = 'vit_tiny_patch16_224'
-    assert args.patch_size == 16, 'patch_size has to be 16 for vit tiny'
-    # model = ReduceViT(reducer_inner_dim=args.reducer_inner_dim,
-    #                     keep_ratio=args.keep_ratio,
-    #                     patch_size=16, embed_dim=192, depth=12, num_heads=3, num_classes=args.num_classes, in_chans=3)
+variant_cfg = {
+    'vit_tiny_patch16_224': {'patch_size':16, 'embed_dim':192, 'depth':12, 'num_heads':3, 'in_chans':3},
+    'vit_small_patch32_224': {'patch_size':32, 'embed_dim':384, 'depth':12, 'num_heads':6, 'in_chans':3},
+    'vit_small_patch16_224': {'patch_size':16, 'embed_dim':384, 'depth':12, 'num_heads':6, 'in_chans':3},
+    'vit_base_patch32_224': {'patch_size':32, 'embed_dim':768, 'depth':12, 'num_heads':12, 'in_chans':3},
+    'vit_base_patch16_224': {'patch_size':16, 'embed_dim':768, 'depth':12, 'num_heads':12, 'in_chans':3}
 
+}
+
+def reducer_vit(args):
+    variant = args.model_variant
     pretrained_cfg = resolve_pretrained_cfg(variant)
     model = build_model_with_cfg(ReduceViT, variant,
                                  pretrained=args.pretrained,
@@ -44,8 +48,8 @@ def reducer_vit_tiny_patch16_224(args):
                                  reducer=args.reducer,
                                  reducer_inner_dim=args.reducer_inner_dim,
                                  keep_ratio=args.keep_ratio,
-                                 patch_size=16, embed_dim=192, depth=12, num_heads=3, num_classes=args.num_classes,
-                                 in_chans=3
+                                 num_classes=args.num_classes,
+                                 **variant_cfg[args.model_variant]
                                  )
     if args.pretrained:
         train_params = ['reducer', 'head']
@@ -55,8 +59,8 @@ def reducer_vit_tiny_patch16_224(args):
     return model
 
 
-def vit_tiny_patch16_224(args):
-    model = timm.models.vision_transformer.vit_tiny_patch16_224(pretrained=args.pretrained, num_classes=args.num_classes)
+def vit_benchmark(args):
+    model = eval(f'timm.models.vision_transformer.{args.model_variant}')(pretrained=args.pretrained, num_classes=args.num_classes)
 
     if args.pretrained:
         train_params = ['reducer', 'head']

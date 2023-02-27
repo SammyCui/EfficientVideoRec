@@ -6,7 +6,7 @@ from trainer.helpers import args_parser, DebugArgs
 
 if __name__ == '__main__':
     # args = args_parser()
-    args= DebugArgs(model='reducer_vit_tiny_patch16_224')
+    args= DebugArgs(model='reducer_vit')
     trainer = BaseTrainer(args)
     if args.train:
         trainer.train()

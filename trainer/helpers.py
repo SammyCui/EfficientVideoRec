@@ -1,10 +1,12 @@
 import argparse
 import os
+from typing import List
+import re
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
-from models.vit import reducer_vit_tiny_patch16_224, vit_tiny_patch16_224
+from models.vit import vit_benchmark, reducer_vit
 
 from backbones.resnet import resnet12, resnet18
 
@@ -94,17 +96,17 @@ def get_dataloaders(args):
     # train_dataset = torchvision.datasets.CIFAR10(root='./dataset', train=True, transform=transform, download=True)
     # val_dataset = torchvision.datasets.CIFAR10(root='./dataset', train=False, transform=transform, download=True)
     train_dataset = VOCDataset(root=os.path.join(args.train_root, 'root'), anno_root=os.path.join(args.train_root, 'annotations'),
-                               cls_to_use=DEFAULT_CLS,
+                               cls_to_use=args.cls_to_use,
                                transform=transform,
                                per_size=args.per_size,
                                object_only=args.object_only)
     val_dataset = VOCDataset(root=os.path.join(args.val_root, 'root'), anno_root=os.path.join(args.val_root, 'annotations'),
-                            cls_to_use=DEFAULT_CLS,
+                            cls_to_use=args.cls_to_use,
                             transform=transform,
                             per_size=args.per_size,
                             object_only=args.object_only)
     test_dataset = VOCDataset(root=os.path.join(args.test_root, 'root'), anno_root=os.path.join(args.test_root, 'annotations'),
-                              cls_to_use=DEFAULT_CLS,
+                              cls_to_use=args.cls_to_use,
                               transform=transform,
                               per_size=args.per_size,
                               object_only=args.object_only)
@@ -123,6 +125,8 @@ def args_parser():
     parser.add_argument('--max_epoch', type=int, default=100)
     parser.add_argument('--train', type=str, default='True')
     parser.add_argument('--mode', type=str, default='reducer-img')
+    parser.add_argument('--model', type=str, nargs='?', const='Benchmark', default='Benchmark')
+    parser.add_argument('--model_variant', type=str)
     parser.add_argument('--reducer', type=str, default='RandomReducer')
     parser.add_argument('--patch_size', type=int, default=16)
 
@@ -131,7 +135,6 @@ def args_parser():
     parser.add_argument('--reducer_inner_dim', type=int, default=32)
     parser.add_argument('--keep_ratio', type=float, default=0.8)
     parser.add_argument('--backbone', type=str, nargs='?', const='resnet18', default='resnet18')
-    parser.add_argument('--model', type=str, nargs='?', const='Benchmark', default='Benchmark')
     parser.add_argument('--backbone_out_dim', type=int, nargs='?', const=512, default=512)
     parser.add_argument('--pe', type=str, nargs='?', const=None,default=None)
     parser.add_argument('--per_size', type=int, nargs='?', const=None, default=None)
@@ -164,6 +167,11 @@ def args_parser():
 
 def post_process_args(args):
 
+    if args.patch_size and args.model_variant and args.pretrained:
+        reg = re.compile("patch(\d+)")
+        pretrained_patchsize = int(reg.findall(args.model_variant)[0])
+        assert pretrained_patchsize == args.patch_size, 'Specified patch size has to be equal to the pretrained patch size'
+
     args.train_root = os.path.join(args.root, 'train')
     args.val_root = os.path.join(args.root, 'val')
     args.test_root = os.path.join(args.root, 'test')
@@ -195,6 +203,7 @@ class DebugArgs:
                  reducer_inner_dim: int = 64,
                  patch_size: int = 16,
                  backbone_out_dim: int = 512,
+                 model_variant: str = 'vit_tiny_patch16_224',
                  pe: str = None,
                  per_size: int = None,
                  concat: bool = False,
@@ -208,7 +217,8 @@ class DebugArgs:
                  lr_scheduler: str = 'step',
                  step_size: int = 20,
                  gamma: float = 0.2,
-                 num_classes: int =10,
+                 num_classes: int =20,
+                 cls_to_use: List[str] = None,
                  momentum: float = 0.9,
                  weight_decay: float = 0.0005,
                  train: bool = True,
@@ -226,8 +236,10 @@ class DebugArgs:
         self.root = root
         self.backbone = backbone
         self.mode = mode
+        self.cls_to_use = cls_to_use
         self.keep_ratio = keep_ratio
         self.patch_size = patch_size
+        self.model_variant = model_variant
         self.backbone_out_dim = backbone_out_dim
         self.pe = pe
         self.per_size = per_size

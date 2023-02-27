@@ -7,7 +7,7 @@ from utils.logger import Logger
 from utils.meters import AverageMeter, StatsMeter
 from utils.metric import accuracy
 from timeit import default_timer as timer
-
+from copy import deepcopy
 from trainer.helpers import get_model_optimizer, get_dataloaders
 
 
@@ -21,7 +21,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         self.max_epoch = args.max_epoch
         self.device = args.device
 
-        self.train_time, self.forward_tm, self.backward_tm, self.optimize_tm = (AverageMeter(),) * 4
+        self.train_time, self.forward_tm, self.backward_tm, self.optimize_tm = (deepcopy(AverageMeter()) for _ in range(4))
 
         self.result_log = {'max_val_acc@1': 0,
                            'max_val_acc@1_epoch': 0}
@@ -40,7 +40,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
             self.model.train()
 
-            train_loss, train_acc_1, train_acc_3, train_acc_5 = (AverageMeter(),) * 4
+            train_loss, train_acc_1, train_acc_3, train_acc_5 = (deepcopy(AverageMeter()) for _ in range(4))
 
             for batch in self.train_dataloader:
 
@@ -92,7 +92,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
 
     def _validate(self):
         self.model.eval()
-        val_loss, val_acc_1, val_acc_3, val_acc_5 = (StatsMeter(),) * 4
+        val_loss, val_acc_1, val_acc_3, val_acc_5 = (deepcopy(StatsMeter()) for _ in range(4))
         with torch.no_grad():
             for batch in self.val_dataloader:
                 if self.args.per_size:
@@ -164,7 +164,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             self.model.load_state_dict(param)
         self.model.eval()
         t0 = timer()
-        test_loss, test_acc_1, test_acc_3, test_acc_5 = (StatsMeter(),) * 4
+        test_loss, test_acc_1, test_acc_3, test_acc_5 = (deepcopy(StatsMeter()) for _ in range(4))
         with torch.no_grad():
             for batch in self.test_dataloader:
                 if self.args.per_size:
@@ -218,8 +218,8 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                 f.write('best epoch {}, best val acc={:.4f}\n'.format(
                     self.result_log['max_val_acc@1_epoch'],
                     self.result_log['max_val_acc@1']))
-                f.write('Test acc={:.4f}\n'.format(
-                    self.result_log['test_acc']))
+                f.write('Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
+                    self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
                 f.write('Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
                         .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
 
