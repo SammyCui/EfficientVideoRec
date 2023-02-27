@@ -51,7 +51,7 @@ class RandomReducer(BaseReducer):
         B, C, H, W = x.shape
         N = H // self.patch_size[0] * W // self.patch_size[1]
         num2keep = int(self.keep_ratio * N)
-        uniform_weights = torch.ones(N).expand(B, -1)
+        uniform_weights = torch.ones(N, device=x.device).expand(B, -1)
         keep_ind = torch.multinomial(uniform_weights, num_samples=num2keep, replacement=False)
         return keep_ind.long()
 
