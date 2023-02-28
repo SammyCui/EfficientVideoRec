@@ -3,16 +3,18 @@ import torch
 from timm.models.helpers import checkpoint_seq, resolve_pretrained_cfg, build_model_with_cfg
 from torch import nn
 from timm.models.vision_transformer import VisionTransformer
-from models.reducer import BaseReducer, RandomReducer
+from models.reducer import BaseReducer, RandomReducer, ConvReducer
 
 
 class ReduceViT(VisionTransformer):
-    def __init__(self, reducer, reducer_inner_dim, keep_ratio, **kwargs):
+    def __init__(self, reducer, reducer_inner_dim, keep_ratio, reducer_depth, image_size=224, **kwargs):
         super().__init__(**kwargs)
         self.reducer = eval(reducer)(patch_size=kwargs.get('patch_size'),
                                    in_chans=kwargs.get('in_chans', 3),
                                    dim=reducer_inner_dim,
-                                   keep_ratio=keep_ratio)
+                                   keep_ratio=keep_ratio,
+                                   reducer_depth=reducer_depth,
+                                   image_size=image_size)
 
     def forward_features(self, x):
         keep_ind = self.reducer(x)
@@ -48,6 +50,8 @@ def reducer_vit(args):
                                  reducer=args.reducer,
                                  reducer_inner_dim=args.reducer_inner_dim,
                                  keep_ratio=args.keep_ratio,
+                                 reducer_depth=args.reducer_depth,
+                                 image_size=args.image_size,
                                  num_classes=args.num_classes,
                                  **variant_cfg[args.model_variant]
                                  )
@@ -59,7 +63,7 @@ def reducer_vit(args):
     return model
 
 
-def vit_benchmark(args):
+def benchmark_vit(args):
     model = eval(f'timm.models.vision_transformer.{args.model_variant}')(pretrained=args.pretrained, num_classes=args.num_classes)
 
     if args.pretrained:

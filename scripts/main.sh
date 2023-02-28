@@ -16,12 +16,13 @@ module load openmpi/cuda/64
 module load ml-pythondeps-py37-cuda11.2-gcc8/4.7.8
 
 source /u/erdos/cnslab/xcui32/venv/bin/activate
-mkdir /u/erdos/cnslab/xcui32/EfficientVideoRec/results/vit_voc10
+# mkdir /u/erdos/cnslab/xcui32/EfficientVideoRec/results/vit_voc10
 
 python3 /u/erdos/cnslab/xcui32/EfficientVideoRec/main.py \
- --root '/u/erdos/students/xcui32/SequentialTraining/datasets/VOC2012/VOC2012_filtered/' \
- --mode reducer-img --train True --patch_size 16 --reducer_inner_dim 32 --keep_ratio 0.7 \
- --backbone resnet18 --model reducer_vit --model_variant vit_tiny_patch16_224 --reducer RandomReducer --backbone_out_dim 512 --pe --per_size --base_channels 64 \
+ --root '/u/erdos/students/xcui32/SequentialTraining/datasets/VOC2012/VOC2012_filtered/' --train True \
+ --mode reducer-img --model reducer_vit --model_variant vit_tiny_patch16_224 --reducer ConvReducer \
+ --patch_size 16 --reducer_inner_dim 32 --keep_ratio 0.7 --image_size 224 --reducer_depth 3\
+ --backbone resnet18 --backbone_out_dim 512 --pe --per_size --base_channels 64 \
  --start_epoch 0 --max_epoch 30 --object_only False --subset_data False \
  --lr 0.001 --optimizer adam --lr_scheduler step --step_size 20 --gamma 0.2 \
  --momentum 0.9  --weight_decay 0.0005 --val_interval 1 \

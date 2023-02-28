@@ -6,7 +6,7 @@ import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
-from models.vit import vit_benchmark, reducer_vit
+from models.vit import benchmark_vit, reducer_vit
 
 from backbones.resnet import resnet12, resnet18
 
@@ -129,6 +129,8 @@ def args_parser():
     parser.add_argument('--model_variant', type=str)
     parser.add_argument('--reducer', type=str, default='RandomReducer')
     parser.add_argument('--patch_size', type=int, default=16)
+    parser.add_argument('--image_size', type=int, default=224)
+    parser.add_argument('--reducer_depth', type=int, default=3)
 
     parser.add_argument('--object_only', type=str, default='False')
     parser.add_argument('--subset_data', type=str, default='False')
@@ -178,6 +180,7 @@ def post_process_args(args):
     args.pretrained = eval(args.pretrained)
     args.concat = eval(args.concat)
     args.train = eval(args.train)
+    args.save = eval(args.save)
     args.object_only = eval(args.object_only)
     args.subset_data = eval(args.subset_data)
     # if subset data, take 10 default classes
@@ -215,6 +218,8 @@ class DebugArgs:
                  lr: float = 0.001,
                  optimizer: str = 'adam',
                  lr_scheduler: str = 'step',
+                 reducer_depth:int = 3,
+                 image_size: int = 224,
                  step_size: int = 20,
                  gamma: float = 0.2,
                  num_classes: int =20,
@@ -243,6 +248,8 @@ class DebugArgs:
         self.backbone_out_dim = backbone_out_dim
         self.pe = pe
         self.per_size = per_size
+        self.reducer_depth = reducer_depth
+        self.image_size = image_size
         self.base_channels = base_channels
         self.model = model
         self.reducer = reducer

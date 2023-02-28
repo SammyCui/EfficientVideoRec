@@ -184,7 +184,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                 test_acc_3.update(acc_3[0].item())
                 test_acc_5.update(acc_5[0].item())
 
-        self.img_per_sec = (timer() - t0)/(len(self.test_dataloader) * self.args.batch_size)
+        self.img_per_sec = (len(self.test_dataloader) * self.args.batch_size) / (timer() - t0)
 
         self.result_log['test_acc@1'] = test_acc_1.avg
         self.result_log['test_acc@3'] = test_acc_3.avg
@@ -222,6 +222,7 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                     self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
                 f.write('Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
                         .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
+                f.write('inference images: {:.2f} per sec \n'.format(self.img_per_sec))
 
         else:
             print('inference images: {:.2f} per sec'.format(self.img_per_sec))
@@ -229,7 +230,10 @@ class BaseTrainer(metaclass=abc.ABCMeta):
             with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
                 f.write('Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
                     self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
-                f.write('inference images: {:.2f} per sec'.format(self.img_per_sec))
+                f.write('inference images: {:.2f} per sec \n'.format(self.img_per_sec))
+
+        with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
+            f.write(str(self.model))
 
         self.logger.close()
 
