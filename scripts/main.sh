@@ -15,8 +15,10 @@ module load gcc8 cuda11.2
 module load openmpi/cuda/64
 module load ml-pythondeps-py37-cuda11.2-gcc8/4.7.8
 
+RUN_NAME="conv_depth3_ratio.7_vit_tiny_voc20"
+
 source /u/erdos/cnslab/xcui32/venv/bin/activate
-# mkdir /u/erdos/cnslab/xcui32/EfficientVideoRec/results/vit_voc10
+mkdir /u/erdos/cnslab/xcui32/EfficientVideoRec/results/$RUN_NAME
 
 python3 /u/erdos/cnslab/xcui32/EfficientVideoRec/main.py \
  --root '/u/erdos/students/xcui32/SequentialTraining/datasets/VOC2012/VOC2012_filtered/' --train True \
@@ -27,4 +29,6 @@ python3 /u/erdos/cnslab/xcui32/EfficientVideoRec/main.py \
  --lr 0.001 --optimizer adam --lr_scheduler step --step_size 20 --gamma 0.2 \
  --momentum 0.9  --weight_decay 0.0005 --val_interval 1 \
  --num_workers 16 --batch_size 64 --device 'cuda:0' --download False \
- --result_dir './results/rand.7_vit_voc20' --save False --resume --init_backbone --pretrained True
+ --result_dir "/u/erdos/cnslab/xcui32/EfficientVideoRec/results/$RUN_NAME" \
+ --write_to_collections "/u/erdos/cnslab/xcui32/EfficientVideoRec/results/results_reducer.txt" --run_name $RUN_NAME \
+ --save False --resume --init_backbone --pretrained True

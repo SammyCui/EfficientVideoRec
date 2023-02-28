@@ -9,6 +9,7 @@ from utils.metric import accuracy
 from timeit import default_timer as timer
 from copy import deepcopy
 from trainer.helpers import get_model_optimizer, get_dataloaders
+from fvcore.nn import FlopCountAnalysis
 
 
 class BaseTrainer(metaclass=abc.ABCMeta):
@@ -198,13 +199,17 @@ class BaseTrainer(metaclass=abc.ABCMeta):
         for k, v in self.result_log.items():
             print(k, ': ', '{:.3f}'.format(v))
 
+        dummy_input = torch.rand((1,3, self.args.image_size, self.args.image_size))
+        flop_total = FlopCountAnalysis(self.model, dummy_input).total()
+
+        print(f'Total model flop per image: {flop_total}')
         if self.args.train:
             print(
                 'forward_timer  (avg): {:.2f} sec  \n' \
                 'backward_timer (avg): {:.2f} sec, \n' \
                 'optim_timer (avg): {:.2f} sec \n' \
                 'epoch_timer (avg): {:.5f} hrs \n' \
-                'total time to converge: {:.2f} hrs' \
+                'total time to converge: {:.2f} hrs \n' \
                 'inference images: {:.2f} per sec'
                     .format(
                         self.forward_tm.avg, self.backward_tm.avg,
@@ -213,26 +218,34 @@ class BaseTrainer(metaclass=abc.ABCMeta):
                         self.img_per_sec
                     )
             )
-
-            with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
-                f.write('best epoch {}, best val acc={:.4f}\n'.format(
-                    self.result_log['max_val_acc@1_epoch'],
-                    self.result_log['max_val_acc@1']))
-                f.write('Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
-                    self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
-                f.write('Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
-                        .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
-                f.write('inference images: {:.2f} per sec \n'.format(self.img_per_sec))
+            if self.args.write_to_collections:
+                with open(self.args.write_to_collections, 'a') as f:
+                    f.write('=' * 50 + '\n')
+                    f.write(self.args.run_name + ': \n')
+                    f.write('\t Best epoch {}, best val acc={:.4f}\n'.format(
+                        self.result_log['max_val_acc@1_epoch'],
+                        self.result_log['max_val_acc@1']))
+                    f.write('\t Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
+                        self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
+                    f.write('\t Total time to converge: {:.3f} hrs, per epoch: {:.5f} hrs'
+                            .format(self.train_time.sum / 3600, self.train_time.avg / 3600))
+                    f.write('\t Inference images: {:.2f} per sec \n'.format(self.img_per_sec))
+                    f.write(f'\t Total model flop per image: {flop_total} \n')
+                    f.write('=' * 50 + '\n')
 
         else:
             print('inference images: {:.2f} per sec'.format(self.img_per_sec))
 
             with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
-                f.write('Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
+                f.write('=' * 50 + '\n')
+                f.write(self.args.run_name + ': \n')
+                f.write('\t Test acc@1={:.4f} acc@3={:.4f} acc@5={:.4f}\n'.format(
                     self.result_log['test_acc@1'], self.result_log['test_acc@3'], self.result_log['test_acc@5']))
-                f.write('inference images: {:.2f} per sec \n'.format(self.img_per_sec))
+                f.write('\t Inference images: {:.2f} per sec \n'.format(self.img_per_sec))
+                f.write(f'\t Total model flop per image: {flop_total} \n')
+                f.write('=' * 50 + '\n')
 
-        with open(os.path.join(self.args.result_dir, 'results.txt'), 'w') as f:
+        with open(os.path.join(self.args.result_dir, 'model_arch.txt'), 'w') as f:
             f.write(str(self.model))
 
         self.logger.close()

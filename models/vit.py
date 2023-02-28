@@ -5,7 +5,6 @@ from torch import nn
 from timm.models.vision_transformer import VisionTransformer
 from models.reducer import BaseReducer, RandomReducer, ConvReducer
 
-
 class ReduceViT(VisionTransformer):
     def __init__(self, reducer, reducer_inner_dim, keep_ratio, reducer_depth, image_size=224, **kwargs):
         super().__init__(**kwargs)
@@ -76,4 +75,5 @@ def benchmark_vit(args):
 
 if __name__ == '__main__':
     model = timm.models.vision_transformer.vit_tiny_patch16_224(pretrained=True, num_classes=10)
-    print(model)
+    red_model = ReduceViT(keep_ratio=.5, reducer='ConvReducer', reducer_depth=3, reducer_inner_dim=32, patch_size=16, in_chans=3)
+    inp = torch.rand((1,3,224,224))

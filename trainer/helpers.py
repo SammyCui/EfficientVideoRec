@@ -155,9 +155,11 @@ def args_parser():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--device', type=str, default='gpu')
     parser.add_argument('--val_interval', type=int, default=1)
-    parser.add_argument('--result_dir', type=str, default='./result')
+    parser.add_argument('--result_dir', type=str, default='./u/erdos/cnslab/xcui32/EfficientVideoRec/results')
     parser.add_argument('--download', type=str, default='False', nargs='?', const='False')
     parser.add_argument('--save', type=str, default='False', nargs='?', const='False')
+    parser.add_argument('--write_to_collections', type=str, default=None, nargs='?', const=None)
+    parser.add_argument('--run_name', type=str)
     parser.add_argument('--resume', type=str, default=None, nargs='?', const=None)
     parser.add_argument('--pretrained', type=str, default='False')
     parser.add_argument('--init_backbone', type=str, default=None, nargs='?', const=None)
@@ -218,6 +220,8 @@ class DebugArgs:
                  lr: float = 0.001,
                  optimizer: str = 'adam',
                  lr_scheduler: str = 'step',
+                 write_to_collections: str = None,
+                 run_name: str = None,
                  reducer_depth:int = 3,
                  image_size: int = 224,
                  step_size: int = 20,
@@ -248,6 +252,8 @@ class DebugArgs:
         self.backbone_out_dim = backbone_out_dim
         self.pe = pe
         self.per_size = per_size
+        self.write_to_collections = write_to_collections
+        self.run_name = run_name
         self.reducer_depth = reducer_depth
         self.image_size = image_size
         self.base_channels = base_channels
